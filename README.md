@@ -1,459 +1,466 @@
-# 汇编大作业 - 团队协作指南
+# x86-32 汇编大作业 - 团队分工方案
 
-> 本仓库用于协作完成"单词频率统计"RISC-V汇编程序
-
----
-
-## 一、团队分工
-
-### 成员职责总览
-
-| 成员 | 主要职责 | 核心模块 | 预估代码量 |
-|------|---------|---------|-----------|
-| **成员A** | 项目负责人 | 主函数 + 文件IO | ~150行 |
-| **成员B** | 数据处理 | 单词分割 + 查表统计 | ~180行 |
-| **成员C** | 工具函数 | 字符串操作 + 输出 | ~140行 |
-| **成员D** | 测试文档 | 测试用例 + 文档 | 5-10个测试文件 |
+> 平台：Linux x86-32 (IA-32)  
+> 汇编器：NASM  
+> 调用约定：cdecl（参数栈传参）
 
 ---
 
-### 成员A：主控模块 + 文件操作
+## 一、x86-32 特点提醒
 
-**负责文件：**
-- `src/main.s` - 程序入口和主流程
-- `src/file_io.s` - 文件打开、读取、关闭
-- `src/data.s` - 数据段定义（全局变量、缓冲区）
-- `Makefile` - 编译脚本
+### 寄存器紧张（只有8个通用）
+```
+EAX, EBX, ECX, EDX, ESI, EDI, EBP, ESP
+```
+- **EBP**：栈帧基址（函数内固定，别乱动）
+- **ESP**：栈指针（push/pop会改变）
+- **EAX**：通常用于返回值
+- **ESI/EDI**：字符串操作专用
 
-**核心任务：**
-1. 定义全局数据结构和缓冲区
-2. 实现 `main` 函数主流程
-3. 实现文件操作（`fopen`, `fgets`, `fclose`）
-4. 整合所有模块，确保能编译运行
-5. 协调团队进度
-
-**接口约定（需提供给其他成员）：**
+### 函数调用约定（cdecl）
 ```asm
-# 全局数据（在 data.s 中定义）
-.globl word_table          # 单词表起始地址
-.globl word_count          # 当前单词数量
-.globl line_buffer         # 行缓冲区（1024字节）
-.globl word_buffer         # 单词缓冲区（50字节）
+; 参数从右到左压栈
+push arg3
+push arg2
+push arg1
+call func
+add esp, 12         ; 调用者清理栈
 
-# 常量定义
-.equ MAX_WORDS, 1000
-.equ MAX_WORD_LEN, 50
-.equ WORD_ENTRY_SIZE, 56   # 50字节word + 4字节count + 2字节对齐
+; 返回值在 EAX
 ```
 
----
-
-### 成员B：数据处理核心
-
-**负责文件：**
-- `src/parser.s` - 文本解析和单词提取
-- `src/word_table.s` - 单词表操作
-
-**核心任务：**
-1. 实现 `processLine` - 解析一行文本，提取所有单词
-2. 实现 `isDelimiter` - 判断字符是否为分隔符
-3. 实现 `toLowerCase` - 字符串转小写
-4. 实现 `findWord` - 在单词表中查找单词
-5. 实现 `addOrUpdateWord` - 添加新单词或更新计数
-
-**关键算法提示：**
-```c
-// processLine 的C逻辑参考
-void processLine(WordEntry *table, int *count, char *line) {
-    int i = 0;
-    while (line[i] != '\0') {
-        // 跳过非字母
-        while (isDelimiter(line[i])) i++;
-        
-        // 收集单词
-        int j = 0;
-        while (!isDelimiter(line[i]) && j < MAX_WORD_LEN-1) {
-            word[j++] = line[i++];
-        }
-        
-        if (j > 0) {
-            word[j] = '\0';
-            toLowerCase(word);
-            addOrUpdateWord(table, count, word);
-        }
-    }
-}
-```
-
----
-
-### 成员C：字符串工具 + 输出
-
-**负责文件：**
-- `src/string.s` - 字符串操作函数
-- `src/output.s` - 输出和结果显示
-
-**核心任务：**
-1. 实现 `strcmp` - 字符串比较
-2. 实现 `strcpy` - 字符串复制
-3. 实现 `strlen` - 字符串长度（可选）
-4. 实现 `findMostFrequent` - 找出最高频单词
-5. 实现 `printAllWords` - 打印所有统计结果
-6. 实现格式化输出辅助函数
-
-**函数规范：**
+### 栈帧结构
 ```asm
-# strcmp(a0=s1, a1=s2) -> a0=差值(0表示相等)
-# strcpy(a0=dest, a1=src) -> a0=dest
-# findMostFrequent(a0=table, a1=n, a2=resultWord, a3=&resultCount)
-# printAllWords(a0=table, a1=n)
+my_func:
+    push ebp
+    mov ebp, esp
+    sub esp, 16         ; 分配局部变量
+    
+    ; [ebp+8]  = 第1个参数
+    ; [ebp+12] = 第2个参数
+    ; [ebp-4]  = 局部变量1
+    ; [ebp-8]  = 局部变量2
+    
+    mov esp, ebp
+    pop ebp
+    ret
 ```
 
 ---
 
-### 成员D：测试 + 文档
+## 二、团队分工详情
+
+### 👤 成员A：项目负责人 + 主控模块
+
+**性格要求**：细心、有耐心处理整合问题
 
 **负责文件：**
-- `tests/test*.txt` - 各类测试文件
-- `docs/design.md` - 设计文档
-- `docs/api.md` - 接口说明文档
-- `docs/test_report.md` - 测试报告
-- `README.md` - 项目说明
+| 文件 | 功能 | 预估代码量 |
+|------|------|-----------|
+| `main.asm` | 程序入口、主流程控制 | ~80行 |
+| `file_io.asm` | 文件打开、读取、关闭 | ~60行 |
+| `data.asm` | 数据段定义（全局变量、缓冲区） | ~40行 |
+| `Makefile` | 编译脚本 | ~30行 |
+
+**核心任务：**
+1. **定义全局数据结构**
+   ```asm
+   ; data.asm 中定义
+   MAX_WORDS equ 1000
+   MAX_WORD_LEN equ 50
+   WORD_ENTRY_SIZE equ 56    ; 50+4+2对齐
+   
+   section .bss
+       word_table  resb MAX_WORDS * WORD_ENTRY_SIZE
+       word_count  resd 1
+       line_buffer resb 1024
+       word_buffer resb 50
+       fd          resd 1
+   ```
+
+2. **实现主函数流程**
+   ```asm
+   _start:
+       call open_file
+       call read_loop        ; 循环读取每行
+       call find_most_frequent
+       call print_result
+       call sys_exit
+   ```
+
+3. **文件操作系统调用**
+   ```asm
+   ; sys_open, sys_read, sys_close (int 0x80)
+   ; eax = 系统调用号
+   ; ebx, ecx, edx = 参数
+   ```
+
+4. **整合所有模块**，解决符号冲突
+
+**交付标准：**
+- [ ] 能成功编译链接
+- [ ] 能打开并读取文件
+- [ ] 整合后程序能跑通基本流程
+
+---
+
+### 👤 成员B：数据处理核心（最复杂）
+
+**性格要求**：逻辑思维强，善于处理循环和边界条件
+
+**负责文件：**
+| 文件 | 功能 | 预估代码量 |
+|------|------|-----------|
+| `parser.asm` | 文本解析、单词提取 | ~100行 |
+| `word_table.asm` | 单词表查找、添加、更新 | ~80行 |
+
+**核心任务：**
+
+#### 1. processLine - 解析一行文本
+```asm
+; 参数: [ebp+8] = line_buffer地址
+; 功能: 提取所有单词，调用add_or_update
+process_line:
+    push ebp
+    mov ebp, esp
+    sub esp, 8          ; 局部变量: i, j
+    
+    ; 伪代码:
+    ; i = 0
+    ; while line[i] != 0:
+    ;     while is_delimiter(line[i]): i++
+    ;     j = 0
+    ;     while !is_delimiter(line[i]):
+    ;         word[j++] = line[i++]
+    ;     if j > 0:
+    ;         word[j] = 0
+    ;         call to_lower_case
+    ;         call add_or_update_word
+    
+    mov esp, ebp
+    pop ebp
+    ret
+```
+
+#### 2. isDelimiter - 判断分隔符
+```asm
+; 参数: al = 字符
+; 返回: ZF=1表示是分隔符
+is_delimiter:
+    ; 检查是否为字母 'a'-'z' 或 'A'-'Z'
+    ; 是字母: 返回ZF=0
+    ; 非字母: 返回ZF=1
+```
+
+#### 3. toLowerCase - 转小写
+```asm
+; 参数: [ebp+8] = 字符串地址
+to_lower_case:
+    ; 遍历字符串
+    ; if 'A' <= c <= 'Z': c = c + 32
+```
+
+#### 4. findWord - 在单词表中查找
+```asm
+; 参数: [ebp+8]=table, [ebp+12]=n, [ebp+16]=word
+; 返回: eax=索引(>=0) 或 -1
+find_word:
+    ; for i = 0 to n-1:
+    ;     if strcmp(table[i].word, word) == 0:
+    ;         return i
+    ; return -1
+```
+
+#### 5. addOrUpdateWord - 添加或更新
+```asm
+; 参数: [ebp+8]=table, [ebp+12]=&count, [ebp+16]=word
+add_or_update_word:
+    ; idx = find_word(...)
+    ; if idx >= 0:
+    ;     table[idx].count++
+    ; else:
+    ;     strcpy(table[count].word, word)
+    ;     table[count].count = 1
+    ;     count++
+```
+
+**关键难点：**
+- 数组索引计算：`table[i]` 的地址 = `table + i * WORD_ENTRY_SIZE`
+- 结构体成员访问：`table[i].count` 的地址 = `table[i] + MAX_WORD_LEN`
+- 寄存器分配紧张，需要频繁使用栈保存中间结果
+
+**交付标准：**
+- [ ] `process_line` 能正确分割单词
+- [ ] `find_word` 能找到已存在的单词
+- [ ] `add_or_update` 能正确添加新单词和更新计数
+
+---
+
+### 👤 成员C：字符串工具 + 输出
+
+**性格要求**：注重细节，熟悉字符串操作
+
+**负责文件：**
+| 文件 | 功能 | 预估代码量 |
+|------|------|-----------|
+| `string.asm` | 字符串比较、复制、长度 | ~60行 |
+| `output.asm` | 输出函数、格式化打印 | ~80行 |
+
+**核心任务：**
+
+#### 1. strcmp - 字符串比较
+```asm
+; 参数: [ebp+8]=s1, [ebp+12]=s2
+; 返回: eax = 0(相等), >0(s1>s2), <0(s1<s2)
+strcmp:
+    push ebp
+    mov ebp, esp
+    push esi
+    push edi
+    
+    mov esi, [ebp+8]    ; s1
+    mov edi, [ebp+12]   ; s2
+    
+    ; 使用 repe cmpsb 指令
+    ; 或手动循环比较
+    
+    pop edi
+    pop esi
+    pop ebp
+    ret
+```
+
+#### 2. strcpy - 字符串复制
+```asm
+; 参数: [ebp+8]=dest, [ebp+12]=src
+; 返回: eax = dest
+strcpy:
+    ; 使用 movsb 指令
+    ; 或手动循环复制
+```
+
+#### 3. findMostFrequent - 找最高频
+```asm
+; 参数: [ebp+8]=table, [ebp+12]=n
+;       [ebp+16]=result_word_buf, [ebp+20]=&result_count
+find_most_frequent:
+    ; max_idx = 0
+    ; for i = 1 to n-1:
+    ;     if table[i].count > table[max_idx].count:
+    ;         max_idx = i
+    ; strcpy(result_word, table[max_idx].word)
+    ; *result_count = table[max_idx].count
+```
+
+#### 4. printResult - 输出结果
+```asm
+; 使用 sys_write (eax=4) 输出字符串
+; 或使用 C 库的 printf（如果链接libc）
+
+; 简单实现:
+print_string:
+    ; eax = 4 (sys_write)
+    ; ebx = 1 (stdout)
+    ; ecx = 字符串地址
+    ; edx = 长度
+    ; int 0x80
+```
+
+**交付标准：**
+- [ ] `strcmp` 能正确比较字符串
+- [ ] `strcpy` 能正确复制字符串（包括结束符）
+- [ ] `find_most_frequent` 能找到正确的最高频单词
+- [ ] 能正确输出结果到屏幕
+
+---
+
+### 👤 成员D：测试 + 文档
+
+**性格要求**：细心、有耐心、善于发现问题
+
+**负责文件：**
+| 文件 | 内容 |
+|------|------|
+| `tests/test1.txt` ~ `test8.txt` | 各类测试数据 |
+| `docs/design.md` | 设计文档 |
+| `docs/api.md` | 接口说明 |
+| `docs/test_report.md` | 测试报告 |
+| `README.md` | 项目说明 |
 
 **测试文件清单：**
-| 文件名 | 测试内容 | 预期结果 |
+
+| 文件名 | 测试场景 | 预期行为 |
 |--------|---------|---------|
-| `test1.txt` | 正常多行文本 | 正确统计各单词频率 |
-| `test2.txt` | 空文件 | 输出"无单词" |
-| `test3.txt` | 只有空格和换行 | 输出"无单词" |
+| `test1.txt` | 正常文本（多行，多种单词） | 正确统计频率 |
+| `test2.txt` | 空文件 | 输出"无单词"提示 |
+| `test3.txt` | 只有空格和换行 | 输出"无单词"提示 |
 | `test4.txt` | 超长单词（>50字符） | 截断处理，不崩溃 |
 | `test5.txt` | 大小写混合（Hello/HELLO/hello） | 统一统计为hello |
-| `test6.txt` | 密集标点符号 | 正确分割单词 |
-| `test7.txt` | 大量重复单词 | 计数正确 |
+| `test6.txt` | 标点符号密集 | 正确分割单词 |
+| `test7.txt` | 大量重复单词 | 计数正确，不溢出 |
 | `test8.txt` | 接近MAX_WORDS上限 | 正常处理或提示满 |
 
+**测试方法：**
+```bash
+# 编译
+nasm -f elf32 main.asm -o main.o
+nasm -f elf32 parser.asm -o parser.o
+# ... 其他文件
+ld -m elf_i386 *.o -o word_count
+
+# 运行测试
+./word_count test1.txt
+./word_count test2.txt
+# ...
+```
+
 **文档要求：**
-- 每个函数添加详细注释（功能、参数、返回值）
-- 记录测试过程和发现的bug
-- 编写使用说明
+1. **design.md**：程序架构、数据结构设计、算法流程图
+2. **api.md**：每个函数的接口说明（参数、返回值、功能）
+3. **test_report.md**：测试用例、测试结果、发现的bug及修复
+
+**交付标准：**
+- [ ] 8个测试文件全部创建
+- [ ] 每个测试文件都有预期结果说明
+- [ ] 测试报告记录完整
+- [ ] README包含编译和运行说明
 
 ---
 
-## 二、Git协作流程
+## 三、协作接口约定
 
-### 2.1 首次使用（每人执行一次）
-
-```bash
-# 1. 克隆仓库到本地
-git clone https://github.com/你的用户名/bighw1-read_file.git
-cd bighw1-read_file
-
-# 2. 配置个人信息（重要！）
-git config user.name "你的姓名"
-git config user.email "你的邮箱"
-```
-
----
-
-### 2.2 日常开发流程
-
-#### 步骤1：开始工作前，拉取最新代码
-
-```bash
-git checkout main
-git pull origin main
-```
-
-#### 步骤2：创建自己的开发分支
-
-```bash
-# 命名规范：姓名/功能名
-git checkout -b zhangsan/parser
-# 或
-git checkout -b lisi/string-utils
-```
-
-#### 步骤3：编写代码...
-
-#### 步骤4：查看修改
-
-```bash
-# 查看哪些文件被修改
-git status
-
-# 查看具体修改内容
-git diff src/parser.s
-```
-
-#### 步骤5：提交代码
-
-```bash
-# 添加修改的文件
-git add src/parser.s
-
-# 或添加所有修改
-git add .
-
-# 提交（写清晰的提交信息）
-git commit -m "实现 processLine 函数，支持空格和标点分割"
-```
-
-**提交信息规范：**
-- ✅ `实现 isDelimiter 函数，判断字母和分隔符`
-- ✅ `修复 strcmp 空指针bug`
-- ✅ `添加测试用例 test4.txt（超长单词）`
-- ❌ `update`
-- ❌ `fix bug`
-- ❌ `111`
-
-#### 步骤6：推送到GitHub
-
-```bash
-git push origin zhangsan/parser
-```
-
----
-
-### 2.3 合并代码（Pull Request）
-
-#### 方式A：通过GitHub网页（推荐新手）
-
-1. 打开 GitHub 仓库页面
-2. 点击 **"Pull requests"** → **"New pull request"**
-3. 选择：`base: main` ← `compare: 你的分支名`
-4. 填写标题和描述：
-   ```
-   标题：实现单词解析模块
-   
-   描述：
-   - 完成 processLine 函数
-   - 完成 isDelimiter 函数  
-   - 完成 toLowerCase 函数
-   - 已通过本地测试
-   ```
-5. 点击 **"Create pull request"**
-6. 通知队友审查，通过后点击 **"Merge"**
-
-#### 方式B：命令行合并（适合简单情况）
-
-```bash
-# 1. 切换到main分支
-git checkout main
-
-# 2. 拉取最新代码
-git pull origin main
-
-# 3. 合并你的分支
-git merge zhangsan/parser
-
-# 4. 推送到GitHub
-git push origin main
-```
-
----
-
-### 2.4 处理代码冲突
-
-当多人修改同一文件时，可能产生冲突。
-
-```bash
-# 1. 拉取最新代码时提示冲突
-git pull origin main
-# Auto-merging src/main.s
-# CONFLICT (content): Merge conflict in src/main.s
-
-# 2. 打开冲突文件，找到冲突标记
-<<<<<<< HEAD
-    # 你的代码
-=======
-    # 队友的代码
->>>>>>> main
-
-# 3. 手动编辑，保留正确代码，删除冲突标记
-
-# 4. 重新提交
-git add src/main.s
-git commit -m "解决main.s合并冲突"
-git push origin main
-```
-
----
-
-### 2.5 常用Git命令速查
-
-| 命令 | 作用 |
-|------|------|
-| `git status` | 查看当前状态 |
-| `git log --oneline` | 查看提交历史（简洁） |
-| `git log --graph` | 查看分支图 |
-| `git branch` | 查看本地分支 |
-| `git branch -a` | 查看所有分支 |
-| `git checkout 分支名` | 切换分支 |
-| `git checkout -b 新分支` | 创建并切换分支 |
-| `git branch -d 分支名` | 删除本地分支 |
-| `git push origin --delete 分支名` | 删除远程分支 |
-| `git stash` | 暂存当前修改 |
-| `git stash pop` | 恢复暂存的修改 |
-
----
-
-## 三、文件命名和代码规范
-
-### 3.1 文件命名
-
-```
-src/
-├── main.s          # 主程序
-├── file_io.s       # 文件操作
-├── parser.s        # 文本解析
-├── word_table.s    # 单词表管理
-├── string.s        # 字符串工具
-├── output.s        # 输出函数
-└── common.inc      # 公共定义（头文件）
-
-tests/
-├── test1.txt       # 正常测试
-├── test2.txt       # 空文件测试
-└── ...
-
-docs/
-├── design.md       # 设计文档
-├── api.md          # 接口文档
-└── test_report.md  # 测试报告
-```
-
-### 3.2 汇编代码规范
+### 全局符号（成员A定义，所有人使用）
 
 ```asm
-# ============================================================================
-# 文件: parser.s
-# 作者: 张三
-# 功能: 文本解析和单词提取
-# 日期: 2024-04-07
-# ============================================================================
+; data.asm 中定义，其他文件用 extern 声明
+section .data
+    MAX_WORDS equ 1000
+    MAX_WORD_LEN equ 50
+    WORD_ENTRY_SIZE equ 56
 
-    .text
-    .globl processLine
-    .globl isDelimiter
-    .globl toLowerCase
-
-# ============================================================================
-# 函数: processLine
-# 描述: 解析一行文本，提取所有单词并统计
-# 参数:
-#   a0 - word_table 地址
-#   a1 - word_count 地址
-#   a2 - line_buffer 地址
-# 返回: 无
-# ============================================================================
-processLine:
-    # 函数序言
-    addi  sp, sp, -48
-    sd    ra, 40(sp)
-    sd    s0, 32(sp)
+section .bss
+    global word_table
+    global word_count
+    global line_buffer
+    global word_buffer
     
-    # 函数体...
-    
-    # 函数尾声
-    ld    ra, 40(sp)
-    ld    s0, 32(sp)
-    addi  sp, sp, 48
-    ret
-
-# ============================================================================
-# 函数: isDelimiter
-# 描述: 判断字符是否为分隔符（非字母）
-# 参数: a0 - 字符
-# 返回: a0 - 1(是分隔符) 或 0(不是分隔符)
-# ============================================================================
-isDelimiter:
-    # 实现...
-    ret
+    word_table  resb MAX_WORDS * WORD_ENTRY_SIZE
+    word_count  resd 1
+    line_buffer resb 1024
+    word_buffer resb 50
 ```
+
+### 函数接口规范
+
+| 函数 | 文件 | 参数（栈顺序） | 返回值 |
+|------|------|---------------|--------|
+| `open_file` | file_io.asm | filename | eax=fd或-1 |
+| `read_line` | file_io.asm | fd, buf, size | eax=读取字节数 |
+| `process_line` | parser.asm | line_buf | 无 |
+| `is_delimiter` | parser.asm | char(al) | ZF |
+| `to_lower_case` | parser.asm | str | 无 |
+| `find_word` | word_table.asm | table, n, word | eax=索引/-1 |
+| `add_or_update` | word_table.asm | table, &count, word | 无 |
+| `strcmp` | string.asm | s1, s2 | eax=差值 |
+| `strcpy` | string.asm | dest, src | eax=dest |
+| `find_most_frequent` | output.asm | table, n, result, &count | 无 |
+| `print_result` | output.asm | 无 | 无 |
 
 ---
 
-## 四、开发时间表  (具体时间节点快点)
+## 四、开发时间表
 
-| 周次 | 任务 | 交付物 | 负责人 |
+| 周次 | 任务 | 交付物 | 检查点 |
 |------|------|--------|--------|
-| **第1周** | 搭建框架 | 各模块空函数 + 能编译 | 全员 |
-| **第2周** | 核心开发 | 各模块功能完成 | 全员 |
-| **第3周** | 首次整合 | 能跑通基本流程 | 成员A |
-| **第4周** | Bug修复 | 修复已知问题 | 全员 |
-| **第5周** | 测试优化 | 通过全部测试用例 | 成员D主导 |
-| **第6周** | 文档完善 | 完整文档 + 演示 | 全员 |
+| **第1周** | 搭建框架 | 各模块空函数，能编译 | 每人提交自己的框架代码 |
+| **第2周** | 核心开发 | 各模块功能实现 | 代码审查（互相检查） |
+| **第3周** | 首次整合 | 能跑通基本流程 | 成员A整合，全员测试 |
+| **第4周** | Bug修复 | 修复已知问题 | 成员D提供bug列表 |
+| **第5周** | 全面测试 | 通过全部测试用例 | 成员D主导测试 |
+| **第6周** | 文档完善 | 完整文档 + 演示准备 | 全员参与 |
 
 ---
 
+## 五、Git协作流程
 
-### Issue使用示例：
+### 分支命名规范
+```
+main                    # 主分支，稳定代码
+├── zhangsan/main       # 成员A的主控模块
+├── lisi/parser         # 成员B的解析模块
+├── wangwu/string       # 成员C的字符串模块
+└── zhaoliu/tests       # 成员D的测试文档
+```
 
+### 提交信息规范
 ```
-标题: [Bug] processLine 处理空行时崩溃
-标签: bug, parser
-指派: 成员B
-描述:
-- 测试文件: test2.txt（空文件）
-- 现象: 程序崩溃
-- 期望: 正常退出，提示无单词
+[模块] 具体修改内容
+
+示例:
+[parser] 实现 process_line 函数，支持空格分割
+[string] 修复 strcmp 空指针bug
+[tests] 添加 test4.txt 超长单词测试
+[docs] 更新 API 接口说明
 ```
+
+### 每周检查流程
+1. **周五晚**：所有人提交本周代码到自己的分支
+2. **周六**：成员A尝试合并到main，记录冲突
+3. **周日**：全员讨论解决冲突，确定下周计划
 
 ---
 
-## 六、常见问题
+## 六、常见问题预案
 
-### Q1: 推送到GitHub时提示权限错误？
-
-**解决：** 检查是否被添加为仓库协作者（Settings → Manage access）
-
-### Q2: 忘记创建分支，直接在main上修改了？
-
-```bash
-# 保存修改
-git stash
-
-# 创建新分支
-git checkout -b 新分支
-
-# 恢复修改
-git stash pop
+### Q1: 寄存器不够用怎么办？
+**解决**：优先使用EBX/ESI/EDI保存长期值，临时值压栈保存
+```asm
+push eax            ; 保存eax
+; ... 使用eax做其他事 ...
+pop eax             ; 恢复eax
 ```
 
-### Q3: 代码写错了，想回退到上次提交？
-
+### Q2: 怎么调试汇编程序？
+**解决**：使用GDB单步调试
 ```bash
-# 查看提交历史
-git log --oneline
-
-# 回退到指定版本（谨慎使用！）
-git reset --hard 提交ID
-
-# 或只回退工作区，保留修改
-git checkout -- 文件名
+nasm -f elf32 -g main.asm -o main.o    # -g 生成调试信息
+ld -m elf_i386 -g *.o -o word_count
+gdb ./word_count
+(gdb) break _start
+(gdb) run
+(gdb) stepi           # 单步执行
+(gdb) info registers  # 查看寄存器
+(gdb) x/10x $esp      # 查看栈内容
 ```
 
-### Q4: 如何查看队友的代码？
+### Q3: 系统调用返回值怎么判断错误？
+**解决**：Linux系统调用返回负数表示错误
+```asm
+int 0x80
+cmp eax, 0
+jl error_handler      ; 如果eax < 0，出错
+```
 
-```bash
-# 拉取所有远程分支
-git fetch origin
-
-# 查看队友分支
-git branch -r
-
-# 切换到队友分支查看
-git checkout origin/lisi/string-utils
+### Q4: 字符串长度怎么计算？
+**解决**：使用 scasb 指令或手动循环
+```asm
+; 手动实现 strlen
+strlen:
+    mov ecx, -1         ; 最大计数
+    xor al, al          ; 查找 '\0'
+    repne scasb         ; 扫描直到找到al
+    ; 结果是 -ecx - 1
 ```
 
 ---
 
 ## 七、参考资源
 
-- [RISC-V 指令集手册](https://riscv.org/technical/specifications/)
-- [RISC-V 汇编编程指南](https://github.com/riscv-non-isa/riscv-asm-manual)
-- [Git 简明教程](https://rogerdudler.github.io/git-guide/index-zh.html)
+- [NASM文档](https://www.nasm.us/doc/)
+- [x86汇编指南](https://www.cs.virginia.edu/~evans/cs216/guides/x86.html)
+- [Linux系统调用表](https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md)
+- [cdecl调用约定](https://en.wikipedia.org/wiki/X86_calling_conventions#cdecl)
 
 ---
 
-**祝大家协作愉快，顺利完成大作业！** 🎉
+**祝团队协作顺利！** 🚀
